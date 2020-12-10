@@ -5,6 +5,11 @@ by Lu Yi, 2020.11.24
 
 ### step1 checkGWASsumstats
 
+INPUT:
+1. original sumstats
+2. hash file
+3. reference files to check genome build and imputation
+
 Parameters required: 
 1. path of the sumstats directory, eg /Users/luyi/Downloads/pgc3_bip_summarystats
 2. sumstats file name, eg daner_bip_pgc3_nm.gz.test.gz
@@ -12,20 +17,15 @@ Parameters required:
 4. name of the pgc working group, eg BIP
 5. year of the sumstats, eg 2019
 
-Input files required:
-1. original sumstats
-2. hash file
-3. reference files to check genome build and imputation
-
-
-Sample code to run in command line: 
+#### Sample code to run in command line: 
 
 Rscript -e "rmarkdown::render('01checkGWASsumstats.Rmd',params=list(arg1='/Users/luyi/Downloads/pgc3_bip_summarystats',arg2='daner_bip_pgc3_nm.gz.test.gz',arg3='md5sum.chk',arg4='BIP',arg5='2019'))"
 
 Rscript -e "rmarkdown::render('01checkGWASsumstats.Rmd',params=list(arg1='/Users/luyi/Downloads/pgc3_bip_summarystats',arg2='daner_bip_pgc3_nm.gz',arg3='md5sum.chk',arg4='BIP',arg5='2019'))"
-# ~10mins to generate the report on the full sumstats file and output the fixed sumstats
 
-N.B. the parameters provided as above will overide the default ones at the beginning of the Rmd file. 
+N.B. 
+1) ~10mins to generate the report on the full sumstats file and output the fixed sumstats
+2) the parameters provided as above will overide the default ones at the beginning of the Rmd file. 
 
 
 --- 
@@ -47,7 +47,7 @@ Parameters required:
 6. path and filename for the chr sizes, eg /Users/luyi/Downloads/vcf.sumstats/00reference/chrom.sizes.tsv
 7. output vcf file, eg 02sumstats2vcf/pgc-bip2021-test.vcf.tsv
 
-Sample code to run in command line: 
+#### Sample code to run in command line: 
 
 Rscript -e "rmarkdown::render('02sumstats2vcf.Rmd',params=list(arg1='/Users/luyi/Downloads/pgc3_bip_summarystats',arg2='01sumstatsFixed/daner.test.txt.gz',arg3='pgc-bip2021-all-cases.xlsx',arg4='metaData',arg5='cohortData',arg6='/Users/luyi/Downloads/vcf.sumstats/00reference/chrom.sizes.tsv',arg7='02sumstats2vcf/pgc-bip2021-test.vcf.tsv'))"
 
