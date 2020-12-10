@@ -1,0 +1,382 @@
+---
+title: "Check GWAS sumstats"
+author: "Lu Yi, Patrick Sullivan"
+date: "v1 2020/11/22; v2 2020/12/10"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    highlight: textmate
+    df_print: paged
+    code_folding: hide
+params:
+  arg1: "/Users/luyi/Downloads/pgc3_bip_summarystats"
+  arg2: "daner_bip_pgc3_nm.gz.test.gz"
+  arg3: "daner_bip_pgc3_nm.gz.test.hash"
+  arg4: "BIP"
+  arg5: "2019"
+---
+
+<style type="text/css">
+  .main-container {
+    max-width: 1500px !important;
+  }
+  /* Whole document: */
+  body{
+    font-family: Helvetica;
+    font-size: 12pt;
+  }
+</style>
+
+
+*Change Log:* 
+
+1. <PLACE HOLDER>  
+2. <PLACE HOLDER>  
+
+## Purpose
+*Run simple quality check and processing on the sumstats, to prepare for publishing at the Figshare*  
+
+Key steps:  
+
++ check md5sum of original sumstats - DONE  
++ check if input cleanly - DONE  
++ check distribution of all variables - DONE  
++ check 100 random SNPs to determine genome build (hg19/hg38) - DONE  
++ generate qced sumstats - DONE  
+
+***
+
+```{r 1 load Rpackages, echo=FALSE, message=FALSE, warning=FALSE}
+
+# Setting up R pkgs
+#- Perform sanity check if the R pkgs exist   
+#- Install the missing packages if any
+
+required.Rpackages <- c("data.table", "tidyverse","knitr","kableExtra","summarytools", "R.utils","usethis")
+new.packages <- required.Rpackages[!(required.Rpackages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+
+#=== initialize
+library(tidyverse)
+library(data.table)
+library(biomaRt)
+#library(MASS)
+library(knitr)
+library(kableExtra)
+#library(ggplot2)
+library(R.utils)  # in order to read .gz files
+library(usethis)
+
+library(summarytools)
+# plus some suggested settings to improve the html output
+st_options(plain.ascii = FALSE,       # This is very handy in all Rmd documents
+           style = "rmarkdown",       # This too
+           footnote = NA,             # Avoids footnotes which would clutter the results
+           subtitle.emphasis = FALSE  # this might improve the headings' layout
+           )    
+```
+
+```{r 2 export sys parameters, echo=F}
+# need to export parameters from R to bash 
+do.call(Sys.setenv, params)
+```
+
+## Loading parameters and input
+### List of parameters
+```{r 3 list parameters, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+r0 <- data.frame(
+  "Required parameters" = c("1. path directory","2. sumstats file","3. hash file", "4. name of the pgc working group","5. year of the sumstats"), # may need "Imputation reference" later
+  "Value" = c(params$arg1, params$arg2, params$arg3, params$arg4, params$arg5),
+   stringsAsFactors=FALSE)
+
+kable(r0) %>% 
+  kable_styling( full_width = T)
+```
+  
+
+```{r 4 read in parameters}
+
+#=== setup variables  
+# path to directory with sumstats & for output
+  dataDir <- params$arg1
+# sumstats file to check & output file prefix
+  sumstatsFile <- params$arg2
+# hash file to verify sumstats checksums
+  hashfile <- params$arg3
+# name of the PGC working group
+  wgrp <- params$arg4
+# year of sumsats were compiled together
+  yr <- params$arg5
+
+    
+#  output file name           <- TO CONFIRM WITH PFS ABOUT FILENAME CONVENTION: e.g. "pgc_BIP_2019"
+  statOut   <- paste("pgc", wgrp, yr, sep="_") 
+
+# print(paste("prefix of the output file:", statOut, sep=" "))
+```
+
+### Locate sumstats file
+```{r 5 locate input}
+
+#=== change directory to the sumstats directory
+setwd(dataDir)
+
+# sanity check if the master file exists
+
+if (file.exists(sumstatsFile)) {
+  print("Successfully Locate the sumstats file")
+  c1 = "OK"
+} else {
+  print("ERROR: sumstats file does not exist, stop processing");
+  c1 = "FAIL"
+  quit()
+}
+
+##   <---- TO SOLVE
+# intermediate file, save but can delete
+  statData2 <- paste(sumstatsFile, "fixed.txt.gz", sep=".")
+
+# pfs had one step converting those space into tab-delimited, and output as statData2 
+# I am hesitated to do that... 
+  
+```
+
+### Check md5sums
+```{bash 6 md5check}
+cd $arg1
+md5sum -c $arg3 >.myparam 2>&1
+cat .myparam
+```
+
+```{r 7 record md5check output}
+# to read the md5sums check into R
+tmpf <- paste(dataDir, ".myparam", sep="/")
+c2 <- rev(unlist(strsplit(readLines(tmpf), ":")))[1]
+
+```
+
+
+### Check if daner format
+```{r 8 check if daner file}
+setwd(dataDir)
+
+
+# JUST reading the header and check below
+#=== file header (as a string)
+a <- fread(sumstatsFile,
+           sep = "^", header = FALSE,
+           col.names = "cols", nrows = 1,
+           stringsAsFactors = FALSE, data.table = FALSE)
+b <- a[1,1]
+b <- gsub(pattern = "FRQ_U_\\d+", "FRQ_U_", b)
+b <- gsub(pattern = "FRQ_A_\\d+", "FRQ_A_", b)
+c <- "CHR\tSNP\tBP\tA1\tA2\tFRQ_A_\tFRQ_U_\tINFO\tOR\tSE\tP\tngt\tDirection\tHetISqt\tHetDf\tHetPVa\tNca\tNco\tNeff_half"  # note the new version of ricopili used Neff_half
+d <- (b==c)
+r1 <- data.frame("File_test" = c("header","daner format header?"), 
+                 "Value" = c(b,d),
+                 stringsAsFactors=FALSE)
+
+if (d == T) {
+  print("Daner format: OK")
+  c3 = "OK"
+} else {
+  print("ERROR: sumstats not in daner format, stop processing");
+  c3 = "FAIL"
+  quit()
+}
+
+rm(a,b,c,d)
+
+```
+
+### Load sumstats
+```{r 9 read input}
+setwd(dataDir)
+
+#=== read daner file as table
+sumstats <- fread(sumstatsFile, 
+                  stringsAsFactors = FALSE, data.table = FALSE, 
+                  # fill=TRUE then in case the rows have unequal length, blank fields are implicitly filled.
+                  fill = TRUE) %>% as_tibble()
+
+# head(sumstats)
+
+```
+
+```{r 10 basic variable fix}
+#=== basic variables fixes
+# NOTE! if not daner format, change column names
+# CHR	SNP	BP	A1	A2	FRQ_A	FRQ_U	INFO	OR	SE	P	ngt	Direction	Nca	Nco	Neff_half
+
+derived <- sumstats %>% 
+  mutate(
+    #    CHR = as.character(CHR), # chromosome number: change as as character
+    ngt = as.numeric(ngt),   # number of genotyped studies: change as numeric
+    BETA = log(OR), OR=NULL  # convert OR to BETA (per Naomi Wray, matches SE). n.b. default "base = exp(1)"
+  ) %>% 
+  rename(
+    FRQ_A = starts_with("FRQ_A"),   # remove the sample size after the frequency column name
+    FRQ_U = starts_with("FRQ_U"),
+  )  %>%  
+  rename_all(toupper) %>%   # change all variable names to upper cases
+  dplyr::select(CHR, SNP, BP, A1, A2, FRQ_A, FRQ_U, INFO, BETA, SE, P, NGT, DIRECTION, NCA, NCO, NEFF_HALF) # keep wanted columns
+
+```
+
+
+## Check distributions 
+```{r 11 print distribution, results='asis'}
+print(
+  dfSummary(derived %>% dplyr::select(-SNP, -BP, -DIRECTION)), valid.col = FALSE, graph.magnif = 0.75, headings=F, method = "render")
+
+```
+
+### Chromosome
+```{r 12 check if all chrosomes}
+
+expCHR <- seq(1,23)           # expected chromosomes: autosomes + chrX (23)
+obsCHR <- unique(derived$CHR)  # observed chromosomes
+
+missingCHR <- expCHR[!(expCHR %in% obsCHR)]   # print out missing chromosomes
+
+if ( length(missingCHR) == 0 ) {
+  print("All chromosomes: OK")
+  c4 = "OK"
+} else {
+  print(paste("WARNING: Missing chromosomes ", missingCHR, sep=""))
+  c4 = "WARNING: Missing chromosomes"
+}
+
+```
+
+### Duplicate variants
+```{r 13 check duplicate variants}
+setwd(dataDir)
+
+chkdup <- derived %>%
+  dplyr::select(CHR, BP, A1, A2) %>%       # select only a few columns to speed up processing
+  arrange(CHR, BP) %>%              # sort by chr bp, so next step doesn't have to sort before counting unique ones
+  mutate(variant = paste(CHR, BP, A1, A2, sep="_")) %>% # saving into one column to speed up 
+  dplyr::select(variant) %>%     # drop other columns
+  group_by(variant) %>%   
+  summarise(n=n())
+
+if ( sum(chkdup$n > 1) == 0 ) {
+  print("Duplicate variant check: OK")
+  c5 = "OK"
+} else {
+  print(paste("WARNING: N duplicate variants= ", sum(chkdup$n > 1 ), sep=""))
+  c5 = paste("WARNING: N duplicate variants= ", sum(chkdup$n > 1 ), sep="")
+  print(paste("List of duplicate variants avaiable in ", statOut, ".dupvar", sep=""))
+  # write out list of duplicate variants
+  dupvar <- chkdup %>% dplyr::filter(n>1) 
+  dupvarfile <- paste(statOut, ".dupvar",sep="")
+  write.table(dupvar, dupvarfile, col.names=T, row.names=F, quote=F, sep="\t")
+}
+
+```
+
+### Genome build  
+Randomly select 100 SNPs from the summary statistics, check how many match with hg19 and hg38.  
+
+```{r 14 check genome build}
+
+#=== check 100 random SNPs
+rand.100snps <- derived %>% 
+  filter(grepl("^rs", SNP)) %>% 
+  sample_n(., 100) %>% 
+  dplyr::select(SNP, CHR, BP)
+
+snplist <- pull(rand.100snps, SNP)
+
+hg38 <- useMart("ENSEMBL_MART_SNP", dataset="hsapiens_snp")
+
+d <- getBM(attributes=c("refsnp_id","chr_name","chrom_start"), mart=hg38,
+           filters="snp_filter", values=snplist)
+setnames(d, names(d), c("SNP","hg38chr","hg38bp"))
+
+d <- d %>% 
+  dplyr::filter(str_length(hg38chr)<=2) %>%  # to remove chr names like "CHR_HSCHR22_1_CTG6"
+  dplyr::distinct(SNP, hg38chr, hg38bp)      # remove duplidate rows
+
+hg19 <- useMart("ENSEMBL_MART_SNP", dataset="hsapiens_snp",
+                host="grch37.ensembl.org", 
+                path="/biomart/martservice")
+e <- getBM(attributes=c("refsnp_id","chr_name","chrom_start"), mart=hg19, 
+           filters="snp_filter", values=snplist)
+setnames(e, names(e), c("SNP","hg19chr","hg19bp"))
+e <- e %>% 
+  dplyr::filter(str_length(hg19chr)<=2) %>% 
+  dplyr::distinct(SNP, hg19chr, hg19bp)
+
+
+f <- inner_join(rand.100snps, d, by="SNP") %>% inner_join(e, by="SNP")
+
+g <- f %>% 
+  mutate(
+    # make an indicator variable by checking which build the positions are aligned
+    b38 = ifelse(CHR==hg38chr & BP==hg38bp, 1, 0),
+    b19 = ifelse(CHR==hg19chr & BP==hg19bp, 1, 0)
+  ) %>%
+  summarise(
+    # do a tally
+    i19 = sum(b19, na.rm=T),
+    i38 = sum(b38, na.rm=T)
+  )
+
+r5 <- data.frame(
+  "Item"   = c("100 random SNPs matching hg19","100 random SNPs matching hg38"),
+  "Result"  = c(g$i19, g$i38),
+  stringsAsFactors=FALSE)
+kable(r5)
+
+if ( g$i19 == 100 ) {
+  c6 = "OK: hg19"
+} else if ( g$i38 == 100 ) {
+  c6 = "OK: hg38"
+} else {
+  c6 = paste("WARNING: numbers of SNPs matching hg19 and hg38 are", g$i19, g$i38, sep=" ")
+}
+
+
+rm(d,e,f,g,hg19,hg38)
+```
+
+
+## Report Summary
+```{r 15 REPORT, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+report <- data.frame(
+  "Key.steps" = c("1. locate sumstats files","2. check md5sums","3. daner format", "4. all chromosomes","5. duplicate variants", "6. genome build"), # may need "Imputation reference" later
+  "Value" = c(c1, c2, c3, c4, c5, c6),
+  stringsAsFactors=FALSE)
+
+kable(report) %>% 
+  kable_styling( full_width = T)
+```
+
+
+## Output QCed sumstats in standard format
+
+```{r 16 OUTPUT}
+setwd(dataDir)
+statData2 <- paste(sumstatsFile, "fixed.txt.gz", sep=".")
+fwrite(derived, statData2, quote=F, row.names = F, sep="\t")
+
+```
+
+```{bash}
+cd $arg1
+mkdir -p 01sumstatsFixed
+mv ${arg2}.fixed.txt.gz 01sumstatsFixed/
+
+echo "The fixed sumstats in: " 01sumstatsFixed/${arg2}.fixed.txt.gz
+```
+
+
+
+## Timestamp
+```{bash}
+echo "The program was completed by Lu Yi at `date`"
+```
+

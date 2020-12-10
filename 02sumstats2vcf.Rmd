@@ -1,0 +1,297 @@
+---
+title: "Reformat sumstats into VCF"
+author: "Lu Yi, Patrick Sullivan"
+date: "v1 2020/12/10"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    highlight: textmate
+    df_print: paged
+    code_folding: hide
+params:
+  arg1: "/Users/luyi/Downloads/pgc3_bip_summarystats"
+  arg2: "daner_bip_pgc3_nm.gz.test.gz"
+  arg3: "pgc-bip2021-all-cases.xlsx"
+  arg4: "metaData"
+  arg5: "cohortData"
+  arg6: "/Users/luyi/Downloads/vcf.sumstats/00reference/chrom.sizes.tsv"
+  arg7: "pgc-bip2021-test.vcf.tsv"
+---
+
+<style type="text/css">
+  .main-container {
+    max-width: 1500px !important;
+  }
+  /* Whole document: */
+  body{
+    font-family: Helvetica;
+    font-size: 12pt;
+  }
+</style>
+
+
+*Change Log:* 
+
+1. <PLACE HOLDER>  
+2. <PLACE HOLDER>  
+
+## Purpose
+*Annotate the cleaned sumstats file in VCF-format, to prepare for publishing at the Figshare*  
+
+INPUT:  
+
++ cleand daner format sumstats  
++ a special Excel file (2 worksheets)  
++ 7 key variables (below)  
++ reference file with chromosome sizes  
+
+OUTPUT:  
+
++ machine-readable sumstats with VCF-like rich header followed by tab-sep columns with explicit definition  
+
+e.g. in R library(data.table) ; x <- fread(file=xx, skip="CHROM\tPOS")  
+
+
+***
+
+```{r 1 load Rpackages, echo=FALSE, message=FALSE, warning=FALSE}
+
+# Setting up R pkgs
+#- Perform sanity check if the R pkgs exist   
+#- Install the missing packages if any
+
+required.Rpackages <- c("data.table", "tidyverse","knitr","kableExtra","summarytools", "R.utils","usethis","readxl")
+new.packages <- required.Rpackages[!(required.Rpackages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+
+#=== initialize
+library(tidyverse)
+library(data.table)
+library(knitr)
+library(kableExtra)
+#library(ggplot2)
+library(R.utils)  # in order to read .gz files
+library(usethis)
+library(readxl)
+
+```
+
+```{r 2 export sys parameters, echo=F}
+# need to export parameters from R to bash 
+do.call(Sys.setenv, params)
+```
+
+## Loading parameters and input
+### List of parameters
+```{r 3 list parameters, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+r0 <- data.frame(
+  "Required parameters" = c("1. path directory","2. INPUT sumstats file", "3. INPUT excel file with GWAS info","4. INPUT excel worksheet name for study metadata","5. INPUT excel worksheet name for cohort info","6. INPUT reference file with chromosome size", "7. OUTPUT vcf file"), 
+  "Value" = c(params$arg1, params$arg2, params$arg3, params$arg4, params$arg5, params$arg6, params$arg7),
+   stringsAsFactors=FALSE)
+
+kable(r0) %>% 
+  kable_styling( full_width = T)
+```
+
+```{bash}
+cd $arg1
+mkdir -p 02sumstats2vcf
+
+```
+
+
+```{r 4 read in parameters}
+
+#=== setup variables  
+# path to directory with sumstats & for output
+  directory <- params$arg1
+# cleaned sumstats file 
+  statData <- params$arg2
+# Excel file with GWAS info
+  paramFile <- params$arg3
+metaData    <- params$arg4            # worksheet name for study metadata
+cohortData  <- params$arg5             # worksheet name for cohort information  
+# reference file with chromosome sizes
+  sizeLoc <- params$arg6
+# output VCF file
+  tsvData <- params$arg7
+
+
+
+```
+
+```{r 5 locate input}
+
+#=== change directory to the sumstats directory
+setwd(directory)
+
+#=== make metadata section of header using excel data
+a <- read_excel(paste(directory, paramFile, sep="/"), sheet = metaData) %>% as_tibble()
+build <- a %>% filter(Description == "genome build") %>% dplyr::select(value)
+b <- tribble(
+  ~Description,             ~txt,
+  "line1",                  '##fileFormat=PGCsumstatsVCFv1.0',
+  "line2",                  '##CAVEAT EMPTOR: ALWAYS CHECK FOR NEWER VERSION',
+  "Date file prepared",     '##fileDate="CHANGEME"',
+  "Preparor",               '##preparedBy="CHANGEME"',
+  "bioRxiv ID",             '##manuscript=<ID=BIORXIV,REF="CHANGEME">',
+  "PMID",                   '##manuscript=<ID=PMID,REF="CHANGEME">',
+  "PMCID",                  '##manuscript=<ID=PMCID,REF="CHANGEME">',
+  "bioRxiv DOI",            '##DOI=<ID=BIORXIV,REF="CHANGEME">',
+  "journal DOI",            '##DOI=<ID=JOURNAL,REF="CHANGEME">',
+  "Link to sumstats",       '##sumstatsLINK=<ID=SUMSTATS,REF="CHANGEME">',
+  "genome build",           '##genomeReference="CHANGEME"',
+  "imputation reference",   '##imputationReference="CHANGEME"',
+  "analysisProgram",        '##analysisProgram="CHANGEME"',
+  "metaAnalysisProgram",    '##metaAnalysisProgram="CHANGEME"',
+  "Brief name of study",    '##shortName="CHANGEME"',
+  "dependentVariable",      '##dependentVariable="CHANGEME"',
+  "dependentVariableType",  '##dependentVariableType="CHANGEME"',
+  "model",                  '##model="CHANGEME"',
+  "methodsParagraph",       '##methodsParagraph="CHANGEME"',
+  "acknowledgments",        '##acknowledgments="CHANGEME"',
+  "abstract",               '##abstract="CHANGEME"',
+  "conditions of use",      '##termsOfUse="CHANGEME"'
+)
+
+c <- left_join(b, a, "Description") %>% 
+  mutate(
+    line=str_replace(txt, "CHANGEME", value)
+  ) %>% 
+  dplyr::select(line)
+
+
+#=== contigs, some programs will punt unless present
+# from UCSC chromInfo files
+e <- fread(file = sizeLoc)
+
+f <- inner_join(build, e, by="value") %>% 
+  mutate(line = "##contig=<ID=XXXXX,length=YYYYY>", 
+         line = str_replace(line, "XXXXX", CHROM),
+         line = str_replace(line, "YYYYY", as.character(size))
+         ) %>% 
+  dplyr::select(line)
+
+
+
+#=== make cohort section of header
+g <- read_excel(paste(directory, paramFile, sep="/"), sheet = cohortData)
+nCase    <- sum(g$Ncase)
+nControl <- sum(g$Ncontrol)
+nTrio    <- sum(g$Ntrio)
+nCohort           <- as.numeric(nrow(g))
+cohortList        <- gsub(" ", "", toString(g$cohort))
+nCaseByCohort     <- gsub(" ", "", toString(g$Ncase))
+nControlByCohort  <- gsub(" ", "", toString(g$Ncontrol))
+nTrioByCohort     <- gsub(" ", "", toString(g$Ntrio))
+SNPsPassPreImputeByCohort  <- gsub(" ", "", toString(g$SNPsPassPreImpute))
+SNPsPassPostImputeByCohort <- gsub(" ", "", toString(g$SNPsPassPostImpute))
+ProcessedByCoreTeam        <- gsub(" ", "", toString(g$ProcessedByCoreTeam))
+
+h <- tribble(
+  ~value,                     ~txt,
+  as.character(nCase),        '##nCase="CHANGEME"', 
+  as.character(nControl),     '##nControl="CHANGEME"',
+  as.character(nTrio),        '##nTrio="CHANGEME"', 
+  as.character(nCohort),      '##nCohort="CHANGEME"', 
+  cohortList,                 '##cohortList="CHANGEME"',
+  nCaseByCohort,              '##nCaseByCohort="CHANGEME"', 
+  nControlByCohort,           '##nControlByCohort="CHANGEME"', 
+  nTrioByCohort,              '##nTrioByCohort="CHANGEME"', 
+  SNPsPassPreImputeByCohort,  '##SNPsPassPreImputeByCohort="CHANGEME"', 
+  SNPsPassPostImputeByCohort, '##SNPsPassPostImputeByCohort="CHANGEME"', 
+  ProcessedByCoreTeam,        '##ProcessedByCoreTeam="CHANGEME"' )
+
+h <- h %>% 
+  mutate(line = str_replace(txt, "CHANGEME", value)) %>% 
+  dplyr::select(line)
+
+#=== input sumstats data, must have been pre-processed
+#=== add fill=TRUE if you know why you need it
+i <- fread(file = paste(directory, statData, sep="/"),)
+nVariants <- as.character(as.numeric(nrow(i)))
+
+j <- tribble(
+  ~line,
+  '##INFO=<ID=A1,Number=1,Type=Character,Description="SNP reference allele for freq, beta, or ln(OR)">',
+  '##INFO=<ID=A2,Number=1,Type=Character,Description="SNP alternate allele">',
+  '##INFO=<ID=BETA,Number=1,Type=Float,Description="beta or ln(OR) of ALT">',
+  '##INFO=<ID=SE,Number=1,Type=Float,Description="standard error">',
+  '##INFO=<ID=PVAL,Number=1,Type=Float,Description="P-value">',
+  '##INFO=<ID=NGT,Number=1,Type=Float,Description="number of cohorts genotyped">',
+  '##INFO=<ID=FCAS,Number=1,Type=Float,Description="frequency of ALT in cases">',
+  '##INFO=<ID=FCON,Number=1,Type=Float,Description="frequency of ALT in controls">',
+  '##INFO=<ID=IMPINFO,Number=1,Type=Float,Description="imputation INFO score">',
+  '##INFO=<ID=NEFFDIV2,Number=1,Type=Float,Description="half effective sample size total">',
+  '##INFO=<ID=NCAS,Number=1,Type=Float,Description="effective sample size cases">',
+  '##INFO=<ID=NCON,Number=1,Type=Float,Description="effective sample size controls">',
+  '##INFO=<ID=DIRE,Number=1,Type=String,Description="direction of effects by cohort">',
+  paste('##nVariants=', nVariants, sep="")
+)
+
+#==== make header (without column definition row)
+header <- bind_rows(c, f, h, j)
+
+
+```
+
+## Prepare standardised output
+```{r}
+#=== change col names & clean sumstat data
+
+# fix chromosome, convert chromosome to character
+setnames(i,"CHR","CHROM")
+i$CHROM <- as.character(i$CHROM)
+i$CHROM[i$CHROM == "23"] <- "X"
+i$CHROM[i$CHROM == "24"] <- "Y"
+i$CHROM[i$CHROM == "25"] <- "X"
+i$CHROM[i$CHROM == "26"] <- "M"
+
+# fix SNP
+setnames(i,"SNP","ID")
+
+# quality and pass    <----NOT NEEDED?
+#i$QUAL <- "."    
+#i$FILTER <- "PASS"
+
+# name changes
+setnames(i,"INFO","IMPINFO")
+setnames(i,"BP","POS")
+#setnames(i,"FRQ_A", "FCAS") 
+#setnames(i,"FRQ_U", "FCON")    
+setnames(i,"FRQ_A_41917", "FCAS")   
+setnames(i,"FRQ_U_371549", "FCON")   
+setnames(i,"P","PVAL")
+setnames(i,"Direction", "DIRE")
+setnames(i,"Nca","NCAS")
+setnames(i,"Nco","NCON")
+setnames(i,"ngt","NGT")
+#setnames(i,"NEFF_HALF","NEFFDIV2")
+setnames(i,"Neff_half","NEFFDIV2")
+
+
+#=== write TSV format
+fn <- paste(directory, tsvData, sep="/")
+fwrite(header, file = fn, col.names = FALSE, quote = FALSE)
+
+# reorder columns & keep only those needed
+k <- i %>%
+  mutate(BETA = log(OR)) %>%
+  select(`#CHROM`=CHROM, POS, ID, A1, A2, BETA, SE, PVAL, NGT, IMPINFO, NEFFDIV2, NCAS, NCON, DIRE)
+fwrite(k, file = fn, col.names = TRUE, quote = FALSE, append = TRUE, sep="\t")
+system2("gzip", c("-f", fn))
+
+
+#=== finish
+rm(list=ls(pattern="^[a-z]"))
+
+```
+
+
+
+## Timestamp
+```{bash}
+echo "The program was completed by Lu Yi at `date`"
+```
+
