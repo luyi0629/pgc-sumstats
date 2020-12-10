@@ -27,8 +27,8 @@ N.B.
 1) ~10mins to generate the report on the full sumstats file and output the fixed sumstats
 2) the parameters provided as above will overide the default ones at the beginning of the Rmd file. 
 
-#### View the sample html here: [01checkGWASsumstats](http://htmlpreview.github.io/?https://github.com/luyi0629/pgc-sumstats/blob/master/01checkGWASsumstats.html
-)
+#### View the sample html here: [01checkGWASsumstats](http://htmlpreview.github.io/?https://github.com/luyi0629/pgc-sumstats/blob/master/01checkGWASsumstats.html)
+
 --- 
 
 ### step2 sumstats2vcf
