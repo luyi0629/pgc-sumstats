@@ -27,7 +27,8 @@ N.B.
 1) ~10mins to generate the report on the full sumstats file and output the fixed sumstats
 2) the parameters provided as above will overide the default ones at the beginning of the Rmd file. 
 
-
+#### View the sample html here: [01checkGWASsumstats](http://htmlpreview.github.io/?https://github.com/luyi0629/pgc-sumstats/blob/master/01checkGWASsumstats.html
+)
 --- 
 
 ### step2 sumstats2vcf
@@ -52,10 +53,5 @@ Parameters required:
 Rscript -e "rmarkdown::render('02sumstats2vcf.Rmd',params=list(arg1='/Users/luyi/Downloads/pgc3_bip_summarystats',arg2='01sumstatsFixed/daner.test.txt.gz',arg3='pgc-bip2021-all-cases.xlsx',arg4='metaData',arg5='cohortData',arg6='/Users/luyi/Downloads/vcf.sumstats/00reference/chrom.sizes.tsv',arg7='02sumstats2vcf/pgc-bip2021-test.vcf.tsv'))"
 
 
----
-
-#### View the sample html here: 
-[01checkGWASsumstats](http://htmlpreview.github.io/?https://github.com/luyi0629/pgc-sumstats/blob/master/01checkGWASsumstats.html
-)
-[02sumstats2vcf](http://htmlpreview.github.io/?https://github.com/luyi0629/pgc-sumstats/blob/master/02sumstats2vcf.html)
+#### View the sample html here: [02sumstats2vcf](http://htmlpreview.github.io/?https://github.com/luyi0629/pgc-sumstats/blob/master/02sumstats2vcf.html)
 
