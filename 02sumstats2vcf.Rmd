@@ -33,8 +33,8 @@ params:
 
 *Change Log:* 
 
-1. <PLACE HOLDER>  
-2. <PLACE HOLDER>  
+1. 2021.02.12 changed the corresponding allele in the description of FRQ/BETA, from ALT to A1. See [link](https://docs.google.com/document/d/1TWIhr8-qpCXB13WCXcU1_HDio8lC_MeWoAg2jlggrtU)  
+2. 2021.02.24 added the allele frequencies in the final output  
 
 ## Purpose
 *Annotate the cleaned sumstats file in VCF-format, to prepare for publishing at the Figshare*  
@@ -216,12 +216,12 @@ j <- tribble(
   ~line,
   '##INFO=<ID=A1,Number=1,Type=Character,Description="SNP reference allele for freq, beta, or ln(OR)">',
   '##INFO=<ID=A2,Number=1,Type=Character,Description="SNP alternate allele">',
-  '##INFO=<ID=BETA,Number=1,Type=Float,Description="beta or ln(OR) of ALT">',
+  '##INFO=<ID=BETA,Number=1,Type=Float,Description="beta or ln(OR) of A1">',
   '##INFO=<ID=SE,Number=1,Type=Float,Description="standard error">',
   '##INFO=<ID=PVAL,Number=1,Type=Float,Description="P-value">',
   '##INFO=<ID=NGT,Number=1,Type=Float,Description="number of cohorts genotyped">',
-  '##INFO=<ID=FCAS,Number=1,Type=Float,Description="frequency of ALT in cases">',
-  '##INFO=<ID=FCON,Number=1,Type=Float,Description="frequency of ALT in controls">',
+  '##INFO=<ID=FCAS,Number=1,Type=Float,Description="frequency of A1 in cases">',
+  '##INFO=<ID=FCON,Number=1,Type=Float,Description="frequency of A1 in controls">',
   '##INFO=<ID=IMPINFO,Number=1,Type=Float,Description="imputation INFO score">',
   '##INFO=<ID=NEFFDIV2,Number=1,Type=Float,Description="half effective sample size total">',
   '##INFO=<ID=NCAS,Number=1,Type=Float,Description="effective sample size cases">',
@@ -258,17 +258,17 @@ setnames(i,"SNP","ID")
 # name changes
 setnames(i,"INFO","IMPINFO")
 setnames(i,"BP","POS")
-#setnames(i,"FRQ_A", "FCAS") 
-#setnames(i,"FRQ_U", "FCON")    
-setnames(i,"FRQ_A_41917", "FCAS")   
-setnames(i,"FRQ_U_371549", "FCON")   
+setnames(i,"FRQ_A", "FCAS") 
+setnames(i,"FRQ_U", "FCON")    
+#setnames(i,"FRQ_A_41917", "FCAS")   
+#setnames(i,"FRQ_U_371549", "FCON")   
 setnames(i,"P","PVAL")
-setnames(i,"Direction", "DIRE")
-setnames(i,"Nca","NCAS")
-setnames(i,"Nco","NCON")
-setnames(i,"ngt","NGT")
-#setnames(i,"NEFF_HALF","NEFFDIV2")
-setnames(i,"Neff_half","NEFFDIV2")
+setnames(i,"DIRECTION", "DIRE")
+setnames(i,"NCA","NCAS")
+setnames(i,"NCO","NCON")
+setnames(i,"NGT","NGT")
+setnames(i,"NEFF_HALF","NEFFDIV2")
+#setnames(i,"Neff_half","NEFFDIV2")
 
 
 #=== write TSV format
@@ -277,8 +277,8 @@ fwrite(header, file = fn, col.names = FALSE, quote = FALSE)
 
 # reorder columns & keep only those needed
 k <- i %>%
-  mutate(BETA = log(OR)) %>%
-  select(`#CHROM`=CHROM, POS, ID, A1, A2, BETA, SE, PVAL, NGT, IMPINFO, NEFFDIV2, NCAS, NCON, DIRE)
+ #  mutate(BETA = log(OR)) %>%  # already changed in the step 1 
+ select(`#CHROM`=CHROM, POS, ID, A1, A2, BETA, SE, PVAL, NGT, FCAS, FCON, IMPINFO, NEFFDIV2, NCAS, NCON, DIRE)
 fwrite(k, file = fn, col.names = TRUE, quote = FALSE, append = TRUE, sep="\t")
 system2("gzip", c("-f", fn))
 
