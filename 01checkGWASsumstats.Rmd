@@ -39,11 +39,11 @@ params:
 
 Key steps:  
 
-+ check md5sum of original sumstats - DONE  
-+ check if input cleanly - DONE  
-+ check distribution of all variables - DONE  
-+ check 100 random SNPs to determine genome build (hg19/hg38) - DONE  
-+ generate qced sumstats - DONE  
++ check md5sum of original sumstats  
++ check if input cleanly  
++ check distribution of all variables  
++ check 100 random SNPs to determine genome build (hg19/hg38)  
++ generate qced sumstats  
 
 ***
 
